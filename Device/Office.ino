@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // Adapted from the "Get Started" project and adjusted to my use case..
 
+#include "Arduino.h"
 #include "AZ3166WiFi.h"
 #include "AzureIotHub.h"
 #include "DevKitMQTTClient.h"
@@ -10,6 +11,8 @@
 #include "utility.h"
 #include "SystemTickCounter.h"
 
+Watchdog watchdog;
+
 static bool hasWifi = false;
 int messageCount = 1;
 int sentMessageCount = 0;
@@ -17,9 +20,11 @@ static bool messageSending = true;
 static uint64_t send_interval_ms;
 static uint64_t update_interval_ms;
 
+int currentPage = 0;
 static float temperature;
 static float humidity;
 static float pressure;
+static int magAxes[3];
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Utilities
@@ -54,6 +59,16 @@ static void UpdateFirstScreenValues() {
   Screen.print(3, line2);
 }
 
+static void UpdateSecondScreenValues() {
+  Screen.print(1, "> Magnetometer");
+
+  char line1[20];
+  sprintf(line1, "%d/%d/%d", magAxes[0], magAxes[1], magAxes[2]);
+  Screen.print(2, line1);
+
+  Screen.print(3, "   ");
+}
+
 static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
 {
   if (result == IOTHUB_CLIENT_CONFIRMATION_OK)
@@ -62,8 +77,8 @@ static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
     sentMessageCount++;
   }
 
-  UpdateFirstScreenValues();
   messageCount++;
+  UpdateFirstScreenValues();
 }
 
 static void MessageCallback(const char* payLoad, int size)
@@ -118,6 +133,7 @@ static int  DeviceMethodCallback(const char *methodName, const unsigned char *pa
 // Arduino sketch
 void setup()
 {
+  watchdog.configure(WATCHDOG_CHECK);
   Screen.init();
   Screen.print(0, "Office DevKit");
   Screen.print(2, "Initializing...");
@@ -146,21 +162,39 @@ void setup()
   DevKitMQTTClient_SetDeviceTwinCallback(DeviceTwinCallback);
   DevKitMQTTClient_SetDeviceMethodCallback(DeviceMethodCallback);
 
+  attachInterrupt(USER_BUTTON_A, switchPage, CHANGE);
+
   send_interval_ms = SystemTickCounterRead();
   update_interval_ms = SystemTickCounterRead();
 }
 
+void switchPage() {
+  currentPage = (currentPage + 1) % TOTAL_PAGES;
+  UpdateDisplay();
+}
+
+void UpdateDisplay() {
+  if (currentPage == 0) {
+    char messagePayload[MESSAGE_MAX_LEN];
+    readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
+    UpdateFirstScreenValues();
+  } else if (currentPage == 1) {
+    readSecondarySensors(magAxes);
+    UpdateSecondScreenValues();
+  }
+}
+
 void loop()
 {
+  watchdog.resetTimer();
+
+  if ((int)(SystemTickCounterRead() - update_interval_ms) >= getUpdateInterval()) {
+    UpdateDisplay();
+    update_interval_ms = SystemTickCounterRead();
+  }
+
   if (hasWifi)
   {
-    if ((int)(SystemTickCounterRead() - update_interval_ms) >= getUpdateInterval()) {
-      char messagePayload[MESSAGE_MAX_LEN];
-      readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
-      UpdateFirstScreenValues();
-      update_interval_ms = SystemTickCounterRead();
-    }
-
     if (messageSending &&
         (int)(SystemTickCounterRead() - send_interval_ms) >= getInterval())
     {

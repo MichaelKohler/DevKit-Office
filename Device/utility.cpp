@@ -3,6 +3,8 @@
 
 #include "HTS221Sensor.h"
 #include "LPS22HBSensor.h"
+#include "LSM6DSLSensor.h"
+#include "LIS2MDLSensor.h"
 #include "AzureIotHub.h"
 #include "Arduino.h"
 #include "parson.h"
@@ -14,6 +16,7 @@
 DevI2C *i2c;
 HTS221Sensor *sensor;
 LPS22HBSensor *pressureSensor;
+LIS2MDLSensor *magSensor;
 static RGB_LED rgbLed;
 static int interval = INTERVAL;
 static int updateInterval = UPDATE_INTERVAL;
@@ -90,6 +93,8 @@ void SensorInit()
     sensor->init(NULL);
     pressureSensor = new LPS22HBSensor(*i2c);
     pressureSensor->init(NULL);
+    magSensor = new LIS2MDLSensor(*i2c);
+    magSensor->init(NULL);
 
     humidity = -1;
     temperature = -1000;
@@ -167,6 +172,11 @@ bool readMessage(int messageId, char *payload, float *temperatureValue, float *h
     json_free_serialized_string(serialized_string);
     json_value_free(root_value);
     return temperatureAlert;
+}
+
+void readSecondarySensors(int *magValue)
+{
+    magSensor->getMAxes(magValue);
 }
 
 #if (DEVKIT_SDK_VERSION >= 10602)
