@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. 
+// Licensed under the MIT license.
 
 #include "HTS221Sensor.h"
 #include "AzureIotHub.h"
@@ -125,7 +125,7 @@ bool readMessage(int messageId, char *payload, float *temperatureValue, float *h
     {
         temperatureAlert = true;
     }
-    
+
     if(h != humidity)
     {
         humidity = h;

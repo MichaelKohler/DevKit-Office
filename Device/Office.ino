@@ -165,5 +165,5 @@ void loop()
       DevKitMQTTClient_Check();
     }
   }
-  delay(30000);
+  delay(1000);
 }
