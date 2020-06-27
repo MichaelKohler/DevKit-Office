@@ -12,6 +12,8 @@
 #include "SystemTickCounter.h"
 
 Watchdog watchdog;
+Thread serverThread;
+WiFiServer server(8080);
 
 static bool hasWifi = false;
 int messageCount = 1;
@@ -45,6 +47,17 @@ static void InitWifi()
     Screen.print(1, "No Wi-Fi\r\n ");
     delay(WIFI_RETRY_DELAY);
     InitWifi();
+  }
+}
+
+void UpdateDisplay() {
+  if (currentPage == 0) {
+    char messagePayload[MESSAGE_MAX_LEN];
+    readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
+    UpdateFirstScreenValues();
+  } else if (currentPage == 1) {
+    readSecondarySensors(magAxes);
+    UpdateSecondScreenValues();
   }
 }
 
@@ -129,6 +142,50 @@ static int  DeviceMethodCallback(const char *methodName, const unsigned char *pa
   return result;
 }
 
+void SwitchPage() {
+  currentPage = (currentPage + 1) % TOTAL_PAGES;
+  UpdateDisplay();
+}
+
+void HandleWifiClient(WiFiClient client) {
+  boolean currentLineIsBlank = true;
+
+  while (client.connected())
+  {
+    if (client.available())
+    {
+      char c = client.read();
+      Serial.write(c);
+      if (c == '\n' && currentLineIsBlank) {
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-Type: application/json");
+        client.println("");
+        client.println("{\"temp\": " + String(temperature) + ", \"humidity\": " + String(humidity) + ", \"pressure\": " + String(pressure) + "}");
+        break;
+      }
+      if (c == '\n') {
+        currentLineIsBlank = true;
+      } else if (c != '\r') {
+        currentLineIsBlank = false;
+      }
+    }
+  }
+
+  delay(1);
+  client.stop();
+}
+
+void RunServer() {
+  server.begin();
+
+  while(true) {
+    WiFiClient client = server.available();
+    if (client) {
+      HandleWifiClient(client);
+    }
+  };
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Arduino sketch
 void setup()
@@ -141,7 +198,6 @@ void setup()
   Screen.print(3, " > Serial");
   Serial.begin(115200);
 
-  // Initialize the WiFi module
   Screen.print(3, " > WiFi");
   hasWifi = false;
   InitWifi();
@@ -162,26 +218,12 @@ void setup()
   DevKitMQTTClient_SetDeviceTwinCallback(DeviceTwinCallback);
   DevKitMQTTClient_SetDeviceMethodCallback(DeviceMethodCallback);
 
-  attachInterrupt(USER_BUTTON_A, switchPage, CHANGE);
+  attachInterrupt(USER_BUTTON_A, SwitchPage, CHANGE);
+
+  serverThread.start(RunServer);
 
   send_interval_ms = SystemTickCounterRead();
   update_interval_ms = SystemTickCounterRead();
-}
-
-void switchPage() {
-  currentPage = (currentPage + 1) % TOTAL_PAGES;
-  UpdateDisplay();
-}
-
-void UpdateDisplay() {
-  if (currentPage == 0) {
-    char messagePayload[MESSAGE_MAX_LEN];
-    readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
-    UpdateFirstScreenValues();
-  } else if (currentPage == 1) {
-    readSecondarySensors(magAxes);
-    UpdateSecondScreenValues();
-  }
 }
 
 void loop()
@@ -195,12 +237,9 @@ void loop()
 
   if (hasWifi)
   {
-    if (messageSending &&
-        (int)(SystemTickCounterRead() - send_interval_ms) >= getInterval())
+    if (messageSending && (int)(SystemTickCounterRead() - send_interval_ms) >= getInterval())
     {
-      // Send temperature data
       char messagePayload[MESSAGE_MAX_LEN];
-
       bool temperatureAlert = readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
       EVENT_INSTANCE* message = DevKitMQTTClient_Event_Generate(messagePayload, MESSAGE);
       DevKitMQTTClient_Event_AddProp(message, "temperatureAlert", temperatureAlert ? "true" : "false");
@@ -213,5 +252,6 @@ void loop()
       DevKitMQTTClient_Check();
     }
   }
+
   delay(1000);
 }
