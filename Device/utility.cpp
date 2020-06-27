@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 
 #include "HTS221Sensor.h"
+#include "LPS22HBSensor.h"
 #include "AzureIotHub.h"
 #include "Arduino.h"
 #include "parson.h"
@@ -12,10 +13,12 @@
 
 DevI2C *i2c;
 HTS221Sensor *sensor;
+LPS22HBSensor *pressureSensor;
 static RGB_LED rgbLed;
 static int interval = INTERVAL;
 static float humidity;
 static float temperature;
+static float pressure;
 
 int getInterval()
 {
@@ -79,9 +82,12 @@ void SensorInit()
     i2c = new DevI2C(D14, D15);
     sensor = new HTS221Sensor(*i2c);
     sensor->init(NULL);
+    pressureSensor = new LPS22HBSensor(*i2c);
+    pressureSensor->init(NULL);
 
     humidity = -1;
     temperature = -1000;
+    pressure = -1000;
 }
 
 float readTemperature()
@@ -104,7 +110,15 @@ float readHumidity()
     return humidity;
 }
 
-bool readMessage(int messageId, char *payload, float *temperatureValue, float *humidityValue)
+float readPressure()
+{
+    float pressure = 0;
+    pressureSensor->getPressure(&pressure);
+
+    return pressure;
+}
+
+bool readMessage(int messageId, char *payload, float *temperatureValue, float *humidityValue, float *pressureValue)
 {
     JSON_Value *root_value = json_value_init_object();
     JSON_Object *root_object = json_value_get_object(root_value);
@@ -114,6 +128,7 @@ bool readMessage(int messageId, char *payload, float *temperatureValue, float *h
 
     float t = readTemperature();
     float h = readHumidity();
+    float p = readPressure();
     bool temperatureAlert = false;
     if(t != temperature)
     {
@@ -132,6 +147,14 @@ bool readMessage(int messageId, char *payload, float *temperatureValue, float *h
         *humidityValue = h;
         json_object_set_number(root_object, "humidity", humidity);
     }
+
+    if(p != pressure)
+    {
+        pressure = p;
+        *pressureValue = p;
+        json_object_set_number(root_object, "pressure", pressure);
+    }
+
     serialized_string = json_serialize_to_string_pretty(root_value);
 
     snprintf(payload, MESSAGE_MAX_LEN, "%s", serialized_string);

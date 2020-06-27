@@ -18,6 +18,7 @@ static uint64_t send_interval_ms;
 
 static float temperature;
 static float humidity;
+static float pressure;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Utilities
@@ -49,7 +50,7 @@ static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
 
   Screen.print(1, "> IoT Hub");
   char line1[20];
-  sprintf(line1, "Count: %d/%d",sentMessageCount, messageCount);
+  sprintf(line1, "M:%d/%d P:%.2f", sentMessageCount, messageCount, pressure);
   Screen.print(2, line1);
 
   char line2[20];
@@ -85,12 +86,12 @@ static int  DeviceMethodCallback(const char *methodName, const unsigned char *pa
 
   if (strcmp(methodName, "start") == 0)
   {
-    LogInfo("Start sending temperature and humidity data");
+    LogInfo("Start sending data");
     messageSending = true;
   }
   else if (strcmp(methodName, "stop") == 0)
   {
-    LogInfo("Stop sending temperature and humidity data");
+    LogInfo("Stop sending data");
     messageSending = false;
   }
   else
@@ -153,7 +154,7 @@ void loop()
       // Send temperature data
       char messagePayload[MESSAGE_MAX_LEN];
 
-      bool temperatureAlert = readMessage(messageCount, messagePayload, &temperature, &humidity);
+      bool temperatureAlert = readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
       EVENT_INSTANCE* message = DevKitMQTTClient_Event_Generate(messagePayload, MESSAGE);
       DevKitMQTTClient_Event_AddProp(message, "temperatureAlert", temperatureAlert ? "true" : "false");
       DevKitMQTTClient_SendEventInstance(message);
