@@ -1,15 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license.
 // Adapted from the "Get Started" project and adjusted to my use case..
 
 #include "Arduino.h"
 #include "AZ3166WiFi.h"
 #include "AzureIotHub.h"
 #include "DevKitMQTTClient.h"
+#include "SystemTickCounter.h"
 
 #include "config.h"
 #include "utility.h"
-#include "SystemTickCounter.h"
 
 Watchdog watchdog;
 Thread serverThread;
@@ -28,21 +26,15 @@ static float humidity;
 static float pressure;
 static int magAxes[3];
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Utilities
-static void InitWifi()
-{
+static void InitWifi() {
   Screen.print(2, "Connecting...");
 
-  if (WiFi.begin() == WL_CONNECTED)
-  {
+  if (WiFi.begin() == WL_CONNECTED) {
     IPAddress ip = WiFi.localIP();
     Screen.print(1, ip.get_address());
     hasWifi = true;
     Screen.print(2, "Running... \r\n");
-  }
-  else
-  {
+  } else {
     hasWifi = false;
     Screen.print(1, "No Wi-Fi\r\n ");
     delay(WIFI_RETRY_DELAY);
@@ -82,10 +74,8 @@ static void UpdateSecondScreenValues() {
   Screen.print(3, "   ");
 }
 
-static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
-{
-  if (result == IOTHUB_CLIENT_CONFIRMATION_OK)
-  {
+static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result) {
+  if (result == IOTHUB_CLIENT_CONFIRMATION_OK) {
     blinkSendConfirmation();
     sentMessageCount++;
   }
@@ -94,43 +84,35 @@ static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
   UpdateFirstScreenValues();
 }
 
-static void MessageCallback(const char* payLoad, int size)
-{
+static void MessageCallback(const char* payLoad, int size) {
   blinkLED();
   Screen.print(1, payLoad, true);
 }
 
-static void DeviceTwinCallback(DEVICE_TWIN_UPDATE_STATE updateState, const unsigned char *payLoad, int size)
-{
+static void DeviceTwinCallback(DEVICE_TWIN_UPDATE_STATE updateState, const unsigned char *payLoad, int size) {
   char *temp = (char *)malloc(size + 1);
-  if (temp == NULL)
-  {
+  if (temp == NULL) {
     return;
   }
+
   memcpy(temp, payLoad, size);
   temp[size] = '\0';
   parseTwinMessage(updateState, temp);
   free(temp);
 }
 
-static int  DeviceMethodCallback(const char *methodName, const unsigned char *payload, int size, unsigned char **response, int *response_size)
-{
+static int  DeviceMethodCallback(const char *methodName, const unsigned char *payload, int size, unsigned char **response, int *response_size) {
   LogInfo("Try to invoke method %s", methodName);
   const char *responseMessage = "\"Successfully invoke device method\"";
   int result = 200;
 
-  if (strcmp(methodName, "start") == 0)
-  {
+  if (strcmp(methodName, "start") == 0) {
     LogInfo("Start sending data");
     messageSending = true;
-  }
-  else if (strcmp(methodName, "stop") == 0)
-  {
+  } else if (strcmp(methodName, "stop") == 0) {
     LogInfo("Stop sending data");
     messageSending = false;
-  }
-  else
-  {
+  } else {
     LogInfo("No method %s found", methodName);
     responseMessage = "\"No method found\"";
     result = 404;
@@ -150,22 +132,20 @@ void SwitchPage() {
 void HandleWifiClient(WiFiClient client) {
   boolean currentLineIsBlank = true;
 
-  while (client.connected())
-  {
-    if (client.available())
-    {
-      char c = client.read();
-      Serial.write(c);
-      if (c == '\n' && currentLineIsBlank) {
+  while (client.connected()) {
+    if (client.available()) {
+      char character = client.read();
+      if (character == '\n' && currentLineIsBlank) {
         client.println("HTTP/1.1 200 OK");
         client.println("Content-Type: application/json");
         client.println("");
         client.println("{\"temp\": " + String(temperature) + ", \"humidity\": " + String(humidity) + ", \"pressure\": " + String(pressure) + "}");
         break;
       }
-      if (c == '\n') {
+
+      if (character == '\n') {
         currentLineIsBlank = true;
-      } else if (c != '\r') {
+      } else if (character != '\r') {
         currentLineIsBlank = false;
       }
     }
@@ -186,10 +166,8 @@ void RunServer() {
   };
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Arduino sketch
-void setup()
-{
+
+void setup() {
   watchdog.configure(WATCHDOG_CHECK);
   Screen.init();
   Screen.print(0, "Office DevKit");
@@ -201,8 +179,7 @@ void setup()
   Screen.print(3, " > WiFi");
   hasWifi = false;
   InitWifi();
-  if (!hasWifi)
-  {
+  if (!hasWifi) {
     return;
   }
 
@@ -226,8 +203,7 @@ void setup()
   update_interval_ms = SystemTickCounterRead();
 }
 
-void loop()
-{
+void loop() {
   watchdog.resetTimer();
 
   if ((int)(SystemTickCounterRead() - update_interval_ms) >= getUpdateInterval()) {
@@ -235,10 +211,8 @@ void loop()
     update_interval_ms = SystemTickCounterRead();
   }
 
-  if (hasWifi)
-  {
-    if (messageSending && (int)(SystemTickCounterRead() - send_interval_ms) >= getInterval())
-    {
+  if (hasWifi) {
+    if (messageSending && (int)(SystemTickCounterRead() - send_interval_ms) >= getInterval()) {
       char messagePayload[MESSAGE_MAX_LEN];
       bool temperatureAlert = readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
       EVENT_INSTANCE* message = DevKitMQTTClient_Event_Generate(messagePayload, MESSAGE);
@@ -246,9 +220,7 @@ void loop()
       DevKitMQTTClient_SendEventInstance(message);
 
       send_interval_ms = SystemTickCounterRead();
-    }
-    else
-    {
+    } else {
       DevKitMQTTClient_Check();
     }
   }
