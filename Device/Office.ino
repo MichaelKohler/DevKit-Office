@@ -15,6 +15,7 @@ int messageCount = 1;
 int sentMessageCount = 0;
 static bool messageSending = true;
 static uint64_t send_interval_ms;
+static uint64_t update_interval_ms;
 
 static float temperature;
 static float humidity;
@@ -40,14 +41,7 @@ static void InitWifi()
   }
 }
 
-static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
-{
-  if (result == IOTHUB_CLIENT_CONFIRMATION_OK)
-  {
-    blinkSendConfirmation();
-    sentMessageCount++;
-  }
-
+static void UpdateFirstScreenValues() {
   Screen.print(1, "> IoT Hub");
   char line1[20];
   sprintf(line1, "M:%d/%d P:%.2f", sentMessageCount, messageCount, pressure);
@@ -56,6 +50,17 @@ static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
   char line2[20];
   sprintf(line2, "T:%.2f H:%.2f", temperature, humidity);
   Screen.print(3, line2);
+}
+
+static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
+{
+  if (result == IOTHUB_CLIENT_CONFIRMATION_OK)
+  {
+    blinkSendConfirmation();
+    sentMessageCount++;
+  }
+
+  UpdateFirstScreenValues();
   messageCount++;
 }
 
@@ -127,8 +132,6 @@ void setup()
     return;
   }
 
-  LogTrace("HappyPathSetup", NULL);
-
   Screen.print(3, " > Sensors");
   SensorInit();
 
@@ -142,12 +145,20 @@ void setup()
   DevKitMQTTClient_SetDeviceMethodCallback(DeviceMethodCallback);
 
   send_interval_ms = SystemTickCounterRead();
+  update_interval_ms = SystemTickCounterRead();
 }
 
 void loop()
 {
   if (hasWifi)
   {
+    if ((int)(SystemTickCounterRead() - update_interval_ms) >= getUpdateInterval()) {
+      char messagePayload[MESSAGE_MAX_LEN];
+      readMessage(messageCount, messagePayload, &temperature, &humidity, &pressure);
+      UpdateFirstScreenValues();
+      update_interval_ms = SystemTickCounterRead();
+    }
+
     if (messageSending &&
         (int)(SystemTickCounterRead() - send_interval_ms) >= getInterval())
     {

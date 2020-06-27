@@ -12,5 +12,6 @@ void SensorInit(void);
 void blinkLED(void);
 void blinkSendConfirmation(void);
 int getInterval(void);
+int getUpdateInterval(void);
 
 #endif /* UTILITY_H */

@@ -16,6 +16,7 @@ HTS221Sensor *sensor;
 LPS22HBSensor *pressureSensor;
 static RGB_LED rgbLed;
 static int interval = INTERVAL;
+static int updateInterval = UPDATE_INTERVAL;
 static float humidity;
 static float temperature;
 static float pressure;
@@ -23,6 +24,11 @@ static float pressure;
 int getInterval()
 {
     return interval;
+}
+
+int getUpdateInterval()
+{
+    return updateInterval;
 }
 
 void blinkLED()
