@@ -38,6 +38,8 @@ static void InitWifi()
   {
     hasWifi = false;
     Screen.print(1, "No Wi-Fi\r\n ");
+    delay(WIFI_RETRY_DELAY);
+    InitWifi();
   }
 }
 
