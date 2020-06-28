@@ -54,14 +54,17 @@ void UpdateDisplay() {
 }
 
 static void UpdateFirstScreenValues() {
-  Screen.print(1, "> IoT Hub");
   char line1[20];
-  sprintf(line1, "M:%d/%d P:%.2f", sentMessageCount, messageCount, pressure);
-  Screen.print(2, line1);
+  sprintf(line1, "M:%d/%d", sentMessageCount, messageCount);
+  Screen.print(1, line1);
 
   char line2[20];
-  sprintf(line2, "T:%.2f H:%.2f", temperature, humidity);
-  Screen.print(3, line2);
+  sprintf(line2, "P:%.2f", pressure);
+  Screen.print(2, line2);
+
+  char line3[20];
+  sprintf(line3, "T:%.2f H:%.2f", temperature, humidity);
+  Screen.print(3, line3);
 }
 
 static void UpdateSecondScreenValues() {
